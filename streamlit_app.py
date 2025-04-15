@@ -1,56 +1,44 @@
 import streamlit as st
-from openai import OpenAI
+from PIL import Image
+import numpy as np
+import pandas as pd
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+# 임시 예측 함수
+def fake_predict(image):
+    return "김밥"
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+# 영양소 데이터
+nutrition_db = {
+    "김밥": {"칼로리": 350, "탄수화물": "40g", "단백질": "10g", "지방": "12g"},
+    "비빔밥": {"칼로리": 550, "탄수화물": "70g", "단백질": "15g", "지방": "18g"}
+}
+
+st.title("음식 사진으로 영양소 알아보기")
+
+uploaded_file = st.file_uploader("음식 사진 업로드", type=["jpg", "png", "jpeg"])
+
+if uploaded_file:
+    try:
+        img = Image.open(uploaded_file).convert("RGB")
+        img.thumbnail((512, 512))  # 메모리 절약
+        st.image(img, caption="업로드한 이미지", use_column_width=True)
+
+        with st.spinner("분석 중..."):
+            predicted_food = fake_predict(img)
+            st.subheader(f"예측된 음식: {predicted_food}")
+
+            if predicted_food in nutrition_db:
+                st.write("**영양소 정보:**")
+                df = pd.DataFrame([nutrition_db[predicted_food]])
+                st.table(df)
+            else:
+                st.write("영양소 정보가 없어요. 음식 이름을 입력해 보세요:")
+                manual_food = st.text_input("음식 이름")
+                if manual_food and manual_food in nutrition_db:
+                    st.write("**영양소 정보:**")
+                    df = pd.DataFrame([nutrition_db[manual_food]])
+                    st.table(df)
+    except Exception as e:
+        st.error(f"이미지 처리 오류: {e}")
 else:
-
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
-
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
-
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
-
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    st.warning("이미지를 업로드해 주세요!")
